@@ -25,10 +25,20 @@
                 <div class="bg-gray-50 p-6 rounded-lg shadow-sm border-l-4 {{ $percentage >= 80 ? 'border-green-500' : ($percentage >= 60 ? 'border-blue-500' : ($percentage >= 40 ? 'border-yellow-500' : 'border-red-500')) }}">
                     <div class="text-center">
                         <h3 class="text-lg font-semibold text-gray-800 mb-2">{{ $program }}</h3>
-                        <div class="text-4xl font-bold {{ $percentage >= 80 ? 'text-green-600' : ($percentage >= 60 ? 'text-blue-600' : ($percentage >= 40 ? 'text-yellow-600' : 'text-red-600')) }}">
+                        <div class="text-4xl font-bold {{ $percentage >= 90 ? 'text-green-600' : ($percentage >= 70 ? 'text-blue-600' : ($percentage >= 60 ? 'text-yellow-600' : 'text-red-600')) }}">
                             {{ $percentage }}%
                         </div>
-                        <p class="text-sm text-gray-500 mt-2">Rata-rata ketercapaian</p>
+                        <div class="mt-1 text-sm font-medium text-gray-700">
+                            @if($percentage >= 90)
+                                Sangat Baik
+                            @elseif($percentage >= 70)
+                                Baik
+                            @elseif($percentage >= 60)
+                                Cukup
+                            @else
+                                Perlu Perbaikan
+                            @endif
+                        </div>
                     </div>
                 </div>
             @empty

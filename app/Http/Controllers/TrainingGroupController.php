@@ -97,30 +97,32 @@ class TrainingGroupController extends Controller
             ->get();
 
         // Hitung ketercapaian berdasarkan questionnaires yang ada
+        // Pembobotan per role
         $yesNoQuestionnaires = $questionnaires->where('type', 'yes_no');
-        $totalQuestions = $yesNoQuestionnaires->count();
-        $totalAnswers = 0;
-        $positiveAnswers = 0;
+        $questionnaireIds = $yesNoQuestionnaires->pluck('id');
+        $calc_percentage = function($role, $group, $questionnaireIds) {
+            $userIds = $group->$role->pluck('id');
+            if ($userIds->isEmpty() || $questionnaireIds->isEmpty()) return 0;
+            $answers = \App\Models\Answer::whereIn('user_id', $userIds)
+                ->whereIn('questionnaire_id', $questionnaireIds)
+                ->where('training_group_id', $group->id)
+                ->get();
+            $yes = $answers->where('value', '1')->count();
+            $no = $answers->whereIn('value', ['0', 0])->count();
+            $total = $yes + $no;
+            return $total > 0 ? round(($yes / $total) * 100, 2) : 0;
+        };
+        $trainer_percentage = $calc_percentage('trainers', $group, $questionnaireIds);
+        $proctor_percentage = $calc_percentage('proctors', $group, $questionnaireIds);
+        $peserta_percentage = $calc_percentage('users', $group, $questionnaireIds);
+        $final_score = round(
+            ($trainer_percentage * 0.35) +
+            ($proctor_percentage * 0.25) +
+            ($peserta_percentage * 0.40), 2
+        );
         
-        foreach ($yesNoQuestionnaires as $questionnaire) {
-            // Filter jawaban berdasarkan training_group_id
-            $answers = $questionnaire->answers()->where('training_group_id', $group->id)->get();
-            if ($answers->isNotEmpty()) {
-                $totalAnswers++;
-                $yesAnswers = $answers->where('value', '1')->count();
-                $totalAnswerCount = $answers->count();
-                
-                if ($totalAnswerCount > 0) {
-                    $positiveAnswers += ($yesAnswers / $totalAnswerCount);
-                }
-            }
-        }
-        
-        // Hitung persentase ketercapaian
-        $percentage = 0;
-        if ($totalAnswers > 0) {
-            $percentage = round(($positiveAnswers / $totalAnswers) * 100);
-        }
+        // Hitung persentase ketercapaian (pakai final_score agar konsisten dengan rekap)
+        $percentage = $final_score;
 
         // Pencarian peserta
         $searchTerm = $request->input('search');
@@ -177,6 +179,11 @@ class TrainingGroupController extends Controller
             'proctorSudahMengisi' => $proctorSudahMengisi,
             'availableUsers' => $availableUsers, 
             'invitedEmails' => $invitedEmails,
+            // pembobotan
+            'trainer_percentage' => $trainer_percentage,
+            'proctor_percentage' => $proctor_percentage,
+            'peserta_percentage' => $peserta_percentage,
+            'final_score' => $final_score,
         ]);
     }
 

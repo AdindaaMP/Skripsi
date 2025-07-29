@@ -35,6 +35,20 @@
         </div>
     </div>
 
+    {{-- Chart Ketercapaian Per Role & Pie Chart Total --}}
+    <div class="mb-8">
+        <h2 class="text-xl font-semibold text-gray-700 mb-4">Chart Persentase Validasi Per Peran & Total Persentase Per Kelompok</h2>
+        <div class="bg-gray-50 p-6 rounded-lg flex flex-row gap-8 items-center justify-between">
+            <div class="flex-1 min-w-0" style="height: 180px;">
+                <canvas id="roleAchievementChart"></canvas>
+            </div>
+            <div style="width: 200px; height: 200px;">
+                <canvas id="totalAchievementPieChart"></canvas>
+                <div id="pieStatusText" class="mt-1 px-2 py-1 rounded border flex items-center justify-center text-xs font-normal bg-gray-100 border-gray-300"></div>
+            </div>
+        </div>
+    </div>
+
     {{-- Daftar Saran --}}
    <div class="mb-8">
         <h2 class="text-xl font-semibold text-gray-700 mb-4">Saran dari Peserta</h2>
@@ -69,6 +83,7 @@
 
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     console.log('DOM Content Loaded');
@@ -180,6 +195,123 @@ document.addEventListener('DOMContentLoaded', function () {
     } catch (error) {
         console.error('Error creating chart:', error);
     }
+
+    // Chart Ketercapaian Per Role
+    const roleLabels = ['Trainer', 'Proctor', 'Peserta'];
+    const roleData = [
+        {{ $trainer_percentage ?? 0 }},
+        {{ $proctor_percentage ?? 0 }},
+        {{ $peserta_percentage ?? 0 }}
+    ];
+    const roleColors = ['#2563eb', '#a21caf', '#f59e42']; // biru, ungu, oranye
+    const roleCtx = document.getElementById('roleAchievementChart').getContext('2d');
+    new Chart(roleCtx, {
+        type: 'bar',
+        data: {
+            labels: roleLabels,
+            datasets: [{
+                label: 'Ketercapaian (%)',
+                data: roleData,
+                backgroundColor: roleColors,
+                borderRadius: 8,
+                maxBarThickness: 60,
+                barPercentage: 0.8,
+                categoryPercentage: 0.9
+            }]
+        },
+        options: {
+            plugins: {
+                legend: { display: false },
+                datalabels: {
+                    anchor: 'top',
+                    align: 'top',
+                    offset: 4,
+                    color: '#fff',
+                    font: { weight: 'bold', size: 14 },
+                    formatter: function(value) {
+                        return value + '%';
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.parsed.y + '%';
+                        }
+                    }
+                }
+            },
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: {
+                        callback: function(val) { return val + '%'; },
+                        color: '#6B7280'
+                    },
+                    grid: { color: 'rgba(156, 163, 175, 0.2)' }
+                },
+                x: {
+                    ticks: { color: '#6B7280' },
+                    grid: { display: false }
+                }
+            }
+        },
+        plugins: [ChartDataLabels]
+    });
+
+    // Pie Chart Rasio Total Ketercapaian
+    const finalScore = {{ $final_score ?? 0 }};
+    const pieData = [finalScore, 100 - finalScore];
+    const pieColors = ['#2563eb', '#e5e7eb'];
+    const pieLabels = ['Tercapai', 'Belum Tercapai'];
+    const pieCtx = document.getElementById('totalAchievementPieChart').getContext('2d');
+    new Chart(pieCtx, {
+        type: 'pie',
+        data: {
+            labels: pieLabels,
+            datasets: [{
+                data: pieData,
+                backgroundColor: pieColors,
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                datalabels: {
+                    display: false // Nonaktifkan label di dalam pie chart
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.label + ': ' + context.parsed + '%';
+                        }
+                    }
+                }
+            }
+        },
+        plugins: [ChartDataLabels]
+    });
+
+    // Perkecil dan ubah warna keterangan status
+    var statusText = '';
+    var statusColor = '';
+    var dotColor = '';
+    if (finalScore >= 70) {
+        statusText = '<span class="text-gray-700">' + finalScore + '% - </span><span class="text-green-600 font-semibold">Tercapai</span>';
+        statusColor = '';
+        dotColor = '#22c55e';
+    } else {
+        statusText = '<span class="text-gray-700">' + finalScore + '% - </span><span class="text-red-600 font-semibold">Belum Tercapai</span>';
+        statusColor = '';
+        dotColor = '#ef4444';
+    }
+    var statusDiv = document.getElementById('pieStatusText');
+    statusDiv.className = 'mt-1 px-2 py-1 rounded border flex items-center justify-center text-xs font-normal bg-gray-100 border-gray-300';
+    statusDiv.innerHTML = '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + dotColor + ';margin-right:6px;"></span>' + statusText;
 });
 </script>
 @endsection

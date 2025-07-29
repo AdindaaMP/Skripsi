@@ -11,16 +11,12 @@ use App\Models\Questionnaire;
 
 class ActivityController extends Controller
 {
-    /**
-     * Menampilkan daftar semua kegiatan.
-     */
     public function index()
     {
         $certifications = Activity::with('groups.users')->get()->map(function ($activity) {
             $activity->total_users = $activity->groups->sum(fn($group) => $group->users->count());
             return $activity;
         });
-        
         return view('admin.sertifikasi.index', compact('certifications'));
     }
 
@@ -59,8 +55,8 @@ class ActivityController extends Controller
     {
         $sertifikasi->load([
             'groups.users.answers',
-            'groups.trainers',
-            'groups.proctors',
+            'groups.trainers.answers',
+            'groups.proctors.answers',
             'groups.program.questionnaires',
             'groups.program',
             'questionnaires'
@@ -76,22 +72,70 @@ class ActivityController extends Controller
         $totalParticipants = $sertifikasi->groups->sum(fn($group) => $group->users->count());
 
         $groups = $sertifikasi->groups->map(function ($group) {
-            // Hitung jawaban berdasarkan training_group_id
-            $allAnswersInGroup = Answer::where('training_group_id', $group->id)->get();
+            $questionnaires = $group->questionnaires ?? collect();
+            if ($questionnaires->isEmpty() && $group->program) {
+                $questionnaires = $group->program->questionnaires ?? collect();
+            }
+            $yesNoQuestionnaires = $questionnaires->where('type', 'yes_no');
+            $questionnaireIds = $yesNoQuestionnaires->pluck('id');
 
-            // Hitung jumlah jawaban "Ya" dan "Tidak"
-            $yes = $allAnswersInGroup->where('value', '1')->count();
-            $no  = $allAnswersInGroup->where('value', '0')->count();
+            // Helper untuk hitung persentase per role
+            $calc_percentage = function($role, $group, $questionnaireIds) {
+                $userIds = $group->$role->pluck('id');
+                if ($userIds->isEmpty() || $questionnaireIds->isEmpty()) return 0;
+                $answers = \App\Models\Answer::whereIn('user_id', $userIds)
+                    ->whereIn('questionnaire_id', $questionnaireIds)
+                    ->where('training_group_id', $group->id)
+                    ->get();
+                $yes = $answers->where('value', '1')->count();
+                $no = $answers->whereIn('value', ['0', 0])->count();
+                $total = $yes + $no;
+                return $total > 0 ? round(($yes / $total) * 100, 2) : 0;
+            };
 
-            // Hitung persentase jawaban "Ya"
-            $group->percentage = ($yes + $no) > 0 ? round(($yes / ($yes + $no)) * 100) : 0;
+            $trainer_percentage = $calc_percentage('trainers', $group, $questionnaireIds);
+            $proctor_percentage = $calc_percentage('proctors', $group, $questionnaireIds);
+            $peserta_percentage = $calc_percentage('users', $group, $questionnaireIds);
+
+            $final_score = round(
+                ($trainer_percentage * 0.35) +
+                ($proctor_percentage * 0.25) +
+                ($peserta_percentage * 0.40), 2
+            );
 
             // Info tambahan
             $group->users_count = $group->users->count();
             $group->trainers_count = $group->trainers->count();
             $group->proctors_count = $group->proctors->count();
             $group->trainer_name = optional($group->trainers->first())->name ?? '-';
+            $group->percentage = $final_score;
+            $group->final_score = $final_score;
+            $group->trainer_percentage = $trainer_percentage;
+            $group->proctor_percentage = $proctor_percentage;
+            $group->peserta_percentage = $peserta_percentage;
 
+            // Hitung jumlah orang yang sudah mengisi per role
+            $filled_users = $group->users->filter(function($user) use ($questionnaireIds, $group) {
+                return \App\Models\Answer::where('user_id', $user->id)
+                    ->whereIn('questionnaire_id', $questionnaireIds)
+                    ->where('training_group_id', $group->id)
+                    ->exists();
+            })->count();
+            $filled_trainers = $group->trainers->filter(function($user) use ($questionnaireIds, $group) {
+                return \App\Models\Answer::where('user_id', $user->id)
+                    ->whereIn('questionnaire_id', $questionnaireIds)
+                    ->where('training_group_id', $group->id)
+                    ->exists();
+            })->count();
+            $filled_proctors = $group->proctors->filter(function($user) use ($questionnaireIds, $group) {
+                return \App\Models\Answer::where('user_id', $user->id)
+                    ->whereIn('questionnaire_id', $questionnaireIds)
+                    ->where('training_group_id', $group->id)
+                    ->exists();
+            })->count();
+            $group->filled_users = $filled_users;
+            $group->filled_trainers = $filled_trainers;
+            $group->filled_proctors = $filled_proctors;
             return $group;
         });
 

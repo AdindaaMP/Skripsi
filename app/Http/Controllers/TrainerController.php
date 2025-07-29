@@ -6,20 +6,15 @@ use App\Models\User;
 use App\Models\TrainingGroup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Auth; // Added this import
+use Illuminate\Support\Facades\Auth;
 
 class TrainerController extends Controller
 {
-    /**
-     * Menampilkan daftar semua trainer.
-     */
     public function index()
     {
-        // Check if user is admin
         if (!Auth::check() || Auth::user()->role !== 'admin') {
             abort(403, 'ANDA TIDAK MEMILIKI HAK AKSES KE HALAMAN INI. Role Anda: ' . (Auth::user() ? Auth::user()->role : 'Not authenticated') . '. Role yang diperlukan: admin');
         }
-
         $trainers = User::where('role', 'trainer')->get();
         return view('admin.trainer.index', compact('trainers'));
     }
@@ -82,42 +77,39 @@ class TrainerController extends Controller
             if ($trainer->role !== 'trainer') {
                 abort(404);
             }
-
-            // Eager load relasi dengan program
-            $groups = $trainer->trainingGroupsAsTrainer()->with(['questionnaires.answers.user', 'program'])->get();
-
+            $groups = $trainer->trainingGroupsAsTrainer()->with(['questionnaires.answers.user', 'program', 'trainers', 'proctors', 'users'])->get();
             $dataByProgram = [];
             $suggestionsFromPeserta = [];
             $suggestionsFromProctor = [];
-
             foreach ($groups as $group) {
-                // Pastikan program dimuat dengan benar
                 if (!$group->program && $group->program_id) {
                     $group->program = \App\Models\Program::find($group->program_id);
                 }
-                
                 if (empty($group->program)) continue;
-
                 $programName = $group->program->name;
-                
-                // Hitung ketercapaian dari jawaban yes/no saja
                 $yesNoQuestions = $group->questionnaires->where('type', 'yes_no');
-                $totalAnswerCount = 0;
-                $totalPositiveAnswers = 0;
-                
-                foreach ($yesNoQuestions as $question) {
-                    // Filter jawaban berdasarkan training_group_id
-                    $answers = $question->answers()->where('training_group_id', $group->id)->get();
-                    if ($answers->isNotEmpty()) {
-                        $yesAnswers = $answers->where('value', '1')->count();
-                        $totalAnswerCount += $answers->count();
-                        $totalPositiveAnswers += $yesAnswers;
-                    }
-                }
-                
-                $percentage = $totalAnswerCount > 0 ? round(($totalPositiveAnswers / $totalAnswerCount) * 100) : 0;
-
-                $dataByProgram[$programName][] = $percentage;
+                $questionnaireIds = $yesNoQuestions->pluck('id');
+                $calc_percentage = function($role, $group, $questionnaireIds) {
+                    $userIds = $group->$role->pluck('id');
+                    if ($userIds->isEmpty() || $questionnaireIds->isEmpty()) return 0;
+                    $answers = \App\Models\Answer::whereIn('user_id', $userIds)
+                        ->whereIn('questionnaire_id', $questionnaireIds)
+                        ->where('training_group_id', $group->id)
+                        ->get();
+                    $yes = $answers->where('value', '1')->count();
+                    $no = $answers->whereIn('value', ['0', 0])->count();
+                    $total = $yes + $no;
+                    return $total > 0 ? round(($yes / $total) * 100, 2) : 0;
+                };
+                $trainer_percentage = $calc_percentage('trainers', $group, $questionnaireIds);
+                $proctor_percentage = $calc_percentage('proctors', $group, $questionnaireIds);
+                $peserta_percentage = $calc_percentage('users', $group, $questionnaireIds);
+                $final_score = round(
+                    ($trainer_percentage * 0.35) +
+                    ($proctor_percentage * 0.25) +
+                    ($peserta_percentage * 0.40), 2
+                );
+                $dataByProgram[$programName][] = $final_score;
                 
                 // Ambil semua saran dari pertanyaan bertipe 'text'
                 $textQuestions = $group->questionnaires->where('type', 'text');
@@ -135,13 +127,10 @@ class TrainerController extends Controller
                     }
                 }
             }
-
-            // Hitung rata-rata ketercapaian untuk setiap program
             $achievementByProgram = [];
-            foreach ($dataByProgram as $program => $percentages) {
-                $achievementByProgram[$program] = round(collect($percentages)->average());
+            foreach ($dataByProgram as $program => $scores) {
+                $achievementByProgram[$program] = round(collect($scores)->average(), 2);
             }
-
             return view('admin.trainer.show', compact(
                 'trainer',
                 'achievementByProgram',

@@ -19,7 +19,7 @@ class AuthController extends Controller
         Log::info("Microsoft OAuth: Redirecting to Microsoft with role: {$role}");
         session(['intended_role' => $role]);
         Log::info("Microsoft OAuth: Session intended_role set to: " . session('intended_role'));
-        return Socialite::driver('microsoft')->redirect();
+        return Socialite::driver('microsoft')->with(['prompt' => 'select_account'])->redirect();
     }
 
     /**
@@ -48,8 +48,13 @@ class AuthController extends Controller
                                ->where('role', $intendedRole)
                                ->first();
             Log::info('Microsoft OAuth: User lookup result: ' . ($existingUser ? 'FOUND' : 'NOT FOUND'));
-            
+
+            // Batasi pembuatan akun otomatis hanya untuk role 'user'
             if (!$existingUser) {
+                if ($intendedRole !== 'user') {
+                    Log::warning("Microsoft OAuth: Otomatis pembuatan akun hanya diperbolehkan untuk role 'user'. Role diminta: {$intendedRole}");
+                    return redirect()->route('welcome')->with('error', 'Pembuatan akun otomatis hanya diperbolehkan untuk peserta. Silakan hubungi admin untuk akses role lain.');
+                }
                 Log::info("Microsoft OAuth: No user found with email: {$email} and role: {$intendedRole}");
                 
                 // Cek apakah ada user dengan email yang sama tapi role berbeda

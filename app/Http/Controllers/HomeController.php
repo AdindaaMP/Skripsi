@@ -9,22 +9,13 @@ use App\Models\User;
 
 class HomeController extends Controller
 {
-    /**
-     * Menampilkan halaman dashboard untuk pengguna yang login.
-     */
     public function index()
     {
         $user = Auth::user();
 
-        // Cek apakah user perlu mengisi biodata (khusus untuk user/peserta)
         if ($user->role === 'user' && (!$user->nim || !$user->jurusan)) {
-            // Coba auto-fill biodata terlebih dahulu
             $this->tryAutoFillBiodata($user);
-            
-            // Refresh user data dari database
             $user = User::find($user->id);
-            
-            // Jika masih belum lengkap, redirect ke form biodata
             if (!$user->nim || !$user->jurusan) {
                 return redirect()->route('biodata.show');
             }

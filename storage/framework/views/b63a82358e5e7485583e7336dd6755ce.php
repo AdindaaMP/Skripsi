@@ -50,34 +50,20 @@
 
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                <span class="font-bold text-lg <?php echo e($achievement['average_percentage'] >= 80 ? 'text-green-600' : ($achievement['average_percentage'] >= 60 ? 'text-blue-600' : ($achievement['average_percentage'] >= 40 ? 'text-yellow-600' : 'text-red-600'))); ?>">
+                                <span class="font-bold text-lg <?php echo e($achievement['average_percentage'] >= 90 ? 'text-green-600' : ($achievement['average_percentage'] >= 70 ? 'text-blue-600' : ($achievement['average_percentage'] >= 60 ? 'text-yellow-600' : 'text-red-600'))); ?>">
                                     <?php echo e($achievement['average_percentage']); ?>%
                                 </span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo e($achievement['average_percentage'] >= 80 ? 'bg-green-100 text-green-800' : ($achievement['average_percentage'] >= 60 ? 'bg-blue-100 text-blue-800' : ($achievement['average_percentage'] >= 40 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'))); ?>">
-                                    <?php if($achievement['average_percentage'] >= 80): ?>
-                                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
-                                        </svg>
-                                        Sangat Baik
-                                    <?php elseif($achievement['average_percentage'] >= 60): ?>
-                                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
-                                        </svg>
-                                        Baik
-                                    <?php elseif($achievement['average_percentage'] >= 40): ?>
-                                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-                                        </svg>
-                                        Cukup
-                                    <?php else: ?>
-                                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-                                        </svg>
-                                        Perlu Perbaikan
-                                    <?php endif; ?>
-                                </span>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <?php if($achievement['average_percentage'] >= 90): ?>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Sangat Baik</span>
+                                <?php elseif($achievement['average_percentage'] >= 70): ?>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Baik</span>
+                                <?php elseif($achievement['average_percentage'] >= 60): ?>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Cukup</span>
+                                <?php else: ?>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Perlu Perbaikan</span>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
@@ -104,9 +90,9 @@
         <div class="bg-white p-6 rounded shadow hover:shadow-lg transition">
             <h2 class="text-xl font-bold mb-4"><?php echo e($activity['activity_name']); ?></h2>
 
-            <a href="<?php echo e(route('admin.export.evaluasi', $activity['activity_id'])); ?>"
-               class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 inline-block mb-4">
-                📥 Export ke CSV
+            <a href="<?php echo e(route('admin.activities.exportXlsx', $activity['activity_id'])); ?>"
+               class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 inline-block mb-4 ml-2">
+                📊 Export ke XLSX
             </a>
 
             <?php if(count($activity['groups']) > 0): ?>
@@ -138,24 +124,19 @@
     document.addEventListener('DOMContentLoaded', function() {
         try {
             const activityData = <?php echo json_encode($activitySummaries, 15, 512) ?>;
-
             const colors = [
                 'rgba(59, 130, 246, 0.6)', 'rgba(16, 185, 129, 0.6)',
                 'rgba(244, 114, 182, 0.6)', 'rgba(99, 102, 241, 0.6)',
                 'rgba(234, 179, 8, 0.6)', 'rgba(168, 85, 247, 0.6)',
             ];
-
             activityData.forEach((activity, index) => {
                 const chartElement = document.getElementById(`chart-${index}`);
                 if (!chartElement) return;
-
                 const ctx = chartElement.getContext('2d');
                 const labels = activity.groups.map(g => g.group_name);
+                // PASTIKAN chart mengambil dari field 'percentage' hasil pembobotan
                 const percentages = activity.groups.map(g => g.percentage);
-                const trainers = activity.groups.map(g => g.trainer_name);
-                const programs = activity.groups.map(g => g.program_name);
                 const chartColors = labels.map((_, i) => colors[i % colors.length]);
-
                 new Chart(ctx, {
                     type: 'bar',
                     data: {
@@ -173,11 +154,8 @@
                             tooltip: {
                                 callbacks: {
                                     label: function (context) {
-                                        const percentage = context.raw;
-                                        const groupName = context.label;
-                                        const trainerName = trainers[context.dataIndex];
-                                        const programName = programs[context.dataIndex];
-                                        return `${groupName} (${trainerName}) - ${programName}: ${percentage}%`;
+                                        // Tooltip hanya tampilkan nilai yang sama dengan tabel
+                                        return `${context.label}: ${context.raw}%`;
                                     }
                                 }
                             },

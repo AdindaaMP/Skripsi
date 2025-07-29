@@ -28,16 +28,26 @@
                             <th class="py-3 px-4">Trainer</th>
                             <th class="py-3 px-4">Proctor</th>
                             <th class="py-3 px-4">Ketercapaian</th>
+                            <th class="py-3 px-4">Status</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse ($groups as $group)
                             <tr class="border-b">
-                                <td class="py-3 px-4 font-medium text-gray-900">{{ $group->name }}</td>
-                                <td class="py-3 px-4">{{ optional($group->program)->name ?? 'Program tidak diatur' }}</td>
-                                <td class="py-3 px-4">{{ optional($group->trainers->first())->name ?? '-' }}</td>
-                                <td class="py-3 px-4">{{ optional($group->proctors->first())->name ?? '-' }}</td>
-                                <td class="py-3 px-4 font-bold text-blue-600">{{ $group->percentage }}%</td>
+                                <td class="py-3 px-4 font-medium text-gray-900">{{ $group['name'] }}</td>
+                                <td class="py-3 px-4">{{ optional($group['program'])->name ?? 'Program tidak diatur' }}</td>
+                                <td class="py-3 px-4">{{ optional($group['trainers']->first())->name ?? '-' }}</td>
+                                <td class="py-3 px-4">{{ optional($group['proctors']->first())->name ?? '-' }}</td>
+                                <td class="py-3 px-4 font-bold text-blue-600">
+                                    {{ $group['percentage'] ?? 0 }}%
+                                </td>
+                                <td class="py-3 px-4">
+                                    @if(($group['percentage'] ?? 0) >= 60)
+                                        <span class="inline-block px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded">Tercapai</span>
+                                    @else
+                                        <span class="inline-block px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded">Belum Tercapai</span>
+                                    @endif
+                                </td>
                             </tr>
                         @empty
                             <tr><td colspan="5" class="text-center py-4">Tidak ada data kelompok untuk ditampilkan.</td></tr>
@@ -78,7 +88,9 @@
                 <tbody>
                     @forelse ($groups as $group)
                         <tr class="bg-white border-b hover:bg-gray-50">
-                            <td class="py-4 px-4 w-20"><canvas id="donut-chart-group-{{ $group->id }}" width="40" height="40"></canvas></td>
+                            <td class="py-4 px-4 w-20">
+                                <canvas id="donut-chart-group-{{ $group->id }}" width="40" height="40"></canvas>
+                            </td>
                             <td class="py-4 px-4 font-medium text-gray-900">{{ $group->name }}</td>
                             <td class="py-4 px-4">{{ optional($group->trainers->first())->name ?? '-' }}</td>
                             <td class="py-4 px-4">{{ optional($group->proctors->first())->name ?? '-' }}</td>
@@ -98,40 +110,27 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     @php
-        // Menyiapkan satu sumber data yang lengkap untuk JavaScript
+        // Mapping chartGroupsData harus mengambil jumlah orang yang sudah mengisi per role untuk chart donut
         $chartGroupsData = $groups->map(function ($group) {
-            // Hitung jumlah yang sudah mengisi evaluasi
-            $filledUsers = $group->users->filter(function($user) use ($group) {
-                return $user->answers()->where('training_group_id', $group->id)->exists();
-            })->count();
-            
-            $filledTrainers = $group->trainers->filter(function($trainer) use ($group) {
-                return $trainer->answers()->where('training_group_id', $group->id)->exists();
-            })->count();
-            
-            $filledProctors = $group->proctors->filter(function($proctor) use ($group) {
-                return $proctor->answers()->where('training_group_id', $group->id)->exists();
-            })->count();
-            
             return [
-                'id' => $group->id,
-                'name' => $group->name,
-                'percentage' => $group->percentage,
-                'trainer_name' => $group->trainer_name,
-                'users_count' => $group->users_count,
-                'trainers_count' => $group->trainers_count,
-                'proctors_count' => $group->proctors_count,
-                'filled_users' => $filledUsers,
-                'filled_trainers' => $filledTrainers,
-                'filled_proctors' => $filledProctors,
+                'id' => $group['id'],
+                'name' => $group['name'],
+                'percentage' => $group['percentage'], // hasil pembobotan
+                'trainer_name' => $group['trainer_name'],
+                'users_count' => $group['users_count'],
+                'trainers_count' => $group['trainers']->count(),
+                'proctors_count' => $group['proctors']->count(),
+                // Jumlah orang yang sudah mengisi per role
+                'filled_users' => $group['filled_users'] ?? 0,
+                'filled_trainers' => $group['filled_trainers'] ?? 0,
+                'filled_proctors' => $group['filled_proctors'] ?? 0,
             ]; 
         });
     @endphp
     <script>
     document.addEventListener('DOMContentLoaded', function () {
         const groupsData = @json($chartGroupsData);
-        
-        // --- GAMBAR CHART BATANG ---
+        // Chart batang harus mengambil data dari field 'percentage' hasil pembobotan
         const mainBarCtx = document.getElementById('mainBarChart')?.getContext('2d');
         if(mainBarCtx) {
             const colorPalette = ['#3B82F6', '#10B981', '#EF4444', '#F59E0B', '#8B5CF6', '#EC4899'];
@@ -152,7 +151,7 @@
                     responsive: true, maintainAspectRatio: false,
                     plugins: { 
                         legend: { display: false }, 
-                        tooltip: { callbacks: { label: (ctx) => `${ctx.label} (${groupsData[ctx.dataIndex].trainer_name}): ${ctx.raw}%` } } 
+                        tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw}%` } } 
                     },
                     scales: { y: { beginAtZero: true, max: 100, ticks: { callback: value => value + '%' } } }
                 }

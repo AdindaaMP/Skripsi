@@ -21,28 +21,41 @@
 
     
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div class="md:col-span-2 bg-gray-50 p-6 rounded-lg">
-            <h3 class="font-semibold text-lg text-gray-800 mb-4">Total Peserta: <?php echo e($group->users->count()); ?></h3>
-            <table class="w-full text-sm text-left">
-                <thead class="text-xs text-gray-700 uppercase">
-                    <tr>
-                        <th class="pb-2">Proctor</th>
-                        <th class="pb-2">Trainer</th>
-                        <th class="pb-2">Program</th>
-                        <th class="pb-2">Ketercapaian(%)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td class="pt-2"><?php echo e(optional($group->proctors->first())->name ?? '-'); ?></td>
-                        <td class="pt-2"><?php echo e(optional($group->trainers->first())->name ?? '-'); ?></td>
-                        <td class="py-2"><?php echo e(optional($group->program)->name ?? 'Program tidak diatur'); ?></td>
-                        <td class="pt-2 font-bold text-lg text-blue-600"><?php echo e($percentage); ?>%</td>
-                    </tr>
-                </tbody>
-            </table>
+        <div class="md:col-span-2 bg-gray-50 p-6 rounded-lg flex flex-col gap-6">
+            <div>
+                <h3 class="font-semibold text-lg text-gray-800 mb-4">Total Peserta: <?php echo e($group->users->count()); ?></h3>
+                <table class="w-full text-sm text-left">
+                    <thead class="text-xs text-gray-700 uppercase">
+                        <tr>
+                            <th class="pb-2">Proctor</th>
+                            <th class="pb-2">Trainer</th>
+                            <th class="pb-2">Program</th>
+                            <th class="pb-2">Ketercapaian(%)</th>
+                            <th class="pb-2">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="pt-2"><?php echo e(optional($group->proctors->first())->name ?? '-'); ?></td>
+                            <td class="pt-2"><?php echo e(optional($group->trainers->first())->name ?? '-'); ?></td>
+                            <td class="py-2"><?php echo e(optional($group->program)->name ?? 'Program tidak diatur'); ?></td>
+                            <td class="pt-2 font-bold text-lg text-blue-600"><?php echo e($percentage); ?>%</td>
+                            <td class="pt-2">
+                                <?php if($percentage >= 60): ?>
+                                    <span class="inline-block px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded">Tercapai</span>
+                                <?php else: ?>
+                                    <span class="inline-block px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded">Belum Tercapai</span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-2">
+                <div class="text-center font-semibold mb-2">Chart Persentase Ketercapaian (Pembobotan)</div>
+                <div class="w-full max-w-md mx-auto"><canvas id="weightedBarChart"></canvas></div>
+            </div>
         </div>
-
         <div class="bg-gray-50 p-6 rounded-lg flex flex-col items-center justify-between">
             <h3 class="font-semibold text-lg text-gray-800 mb-2">Pie Chart Pengisi Kuesioner</h3>
             <div class="w-32 h-32"><canvas id="submissionRoleChart"></canvas></div>
@@ -181,6 +194,52 @@
                         tooltip: {
                             callbacks: {
                                 label: (ctx) => `${ctx.label}: ${ctx.raw} orang`
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // CHART BATANG PEMBOBOTAN KETERISIAN PER ROLE
+        const weightedBarCtx = document.getElementById('weightedBarChart')?.getContext('2d');
+        if (weightedBarCtx) {
+            const proctor_percentage = <?php echo e($proctor_percentage ?? 0); ?>;
+            const trainer_percentage = <?php echo e($trainer_percentage ?? 0); ?>;
+            const peserta_percentage = <?php echo e($peserta_percentage ?? 0); ?>;
+            new Chart(weightedBarCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Proctor', 'Trainer', 'Peserta'],
+                    datasets: [{
+                        label: 'Persentase Ketercapaian (Bobot)',
+                        data: [
+                            (proctor_percentage * 0.25).toFixed(2),
+                            (trainer_percentage * 0.35).toFixed(2),
+                            (peserta_percentage * 0.40).toFixed(2)
+                        ],
+                        backgroundColor: ['#EF4444', '#10B981', '#3B82F6'],
+                        borderRadius: 6,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    return `${ctx.label}: ${ctx.raw}% (bobot)`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: value => value + '%'
                             }
                         }
                     }

@@ -9,9 +9,6 @@ use Illuminate\Support\Facades\Log;
 
 class ProctorPageController extends Controller
 {
-    /**
-     * Menampilkan halaman pengawasan peserta untuk sebuah kelompok.
-     */
     public function showMonitoring(TrainingGroup $group)
     {
         try {
@@ -21,7 +18,6 @@ class ProctorPageController extends Controller
 
             $group->load(['questionnaires', 'users.answers', 'activity', 'program']);
 
-            // Pastikan program dimuat dengan benar
             if (!$group->program && $group->program_id) {
                 $group->program = \App\Models\Program::find($group->program_id);
             }
@@ -37,6 +33,30 @@ class ProctorPageController extends Controller
             $belumMengisi = $totalPeserta - $sudahMengisi;
             $tingkatPartisipasi = $totalPeserta > 0 ? round(($sudahMengisi / $totalPeserta) * 100) : 0;
 
+            // Hitung persentase per role untuk chart
+            $yesNoQuestions = $group->questionnaires->where('type', 'yes_no');
+            $questionnaireIds = $yesNoQuestions->pluck('id');
+            $calc_percentage = function($role, $group, $questionnaireIds) {
+                $userIds = $group->$role->pluck('id');
+                if ($userIds->isEmpty() || $questionnaireIds->isEmpty()) return 0;
+                $answers = \App\Models\Answer::whereIn('user_id', $userIds)
+                    ->whereIn('questionnaire_id', $questionnaireIds)
+                    ->where('training_group_id', $group->id)
+                    ->get();
+                $yes = $answers->where('value', '1')->count();
+                $no = $answers->whereIn('value', ['0', 0])->count();
+                $total = $yes + $no;
+                return $total > 0 ? round(($yes / $total) * 100, 2) : 0;
+            };
+            $trainer_percentage = $calc_percentage('trainers', $group, $questionnaireIds);
+            $proctor_percentage = $calc_percentage('proctors', $group, $questionnaireIds);
+            $peserta_percentage = $calc_percentage('users', $group, $questionnaireIds);
+            $final_score = round(
+                ($trainer_percentage * 0.35) +
+                ($proctor_percentage * 0.25) +
+                ($peserta_percentage * 0.40), 2
+            );
+
             return view('proctor.monitoring', [
                 'group' => $group,
                 'activity' => $group->activity,
@@ -45,6 +65,10 @@ class ProctorPageController extends Controller
                 'sudahMengisi' => $sudahMengisi,
                 'belumMengisi' => $belumMengisi,
                 'tingkatPartisipasi' => $tingkatPartisipasi,
+                'trainer_percentage' => $trainer_percentage,
+                'proctor_percentage' => $proctor_percentage,
+                'peserta_percentage' => $peserta_percentage,
+                'final_score' => $final_score,
             ]);
         } catch (\Exception $e) {
             Log::error('Error in ProctorPageController@showMonitoring: ' . $e->getMessage());
@@ -56,69 +80,49 @@ class ProctorPageController extends Controller
     {
         try {
             $proctor = Auth::user();
-
             if ($proctor->role !== 'proctor') {
                 abort(403);
             }
-
-            $groups = $proctor->trainingGroupsAsProctor()->with(['questionnaires.answers.user', 'program'])->get();
-
+            $groups = $proctor->trainingGroupsAsProctor()->with(['questionnaires.answers.user', 'program', 'trainers', 'proctors', 'users'])->get();
             $dataByProgram = [];
-
             foreach ($groups as $group) {
-                // Pastikan program dimuat dengan benar
                 if (!$group->program && $group->program_id) {
                     $group->program = \App\Models\Program::find($group->program_id);
                 }
-                
                 if (empty($group->program)) continue;
-
                 $programName = $group->program->name;
-                
-                // Hitung ketercapaian berdasarkan questionnaires yang ada
-                $questionnaires = $group->questionnaires->where('type', 'yes_no');
-                
-                if ($questionnaires->isNotEmpty()) {
-                    $totalPositiveAnswers = 0;
-                    $totalAnswerCount = 0;
-                    
-                    foreach ($questionnaires as $questionnaire) {
-                        // Filter jawaban berdasarkan training_group_id
-                        $answers = $questionnaire->answers()->where('training_group_id', $group->id)->get();
-                        if ($answers->isNotEmpty()) {
-                            $yesAnswers = $answers->where('value', '1')->count();
-                            $totalAnswerCount += $answers->count();
-                            $totalPositiveAnswers += $yesAnswers;
-                        }
-                    }
-                    
-                    // Hitung persentase ketercapaian
-                    $achievement = 0;
-                    if ($totalAnswerCount > 0) {
-                        $achievement = round(($totalPositiveAnswers / $totalAnswerCount) * 100);
-                    }
-
-                    $dataByProgram[$programName]['percentages'][] = $achievement;
-
-                    $textQuestions = $group->questionnaires->where('type', 'text');
-                    foreach($textQuestions as $question) {
-                        foreach($question->answers as $answer) {
-                            if (!empty($answer->value)) {
-                                $dataByProgram[$programName]['suggestions'][] = $answer->value;
-                            }
-                        }
-                    }
+                $yesNoQuestions = $group->questionnaires->where('type', 'yes_no');
+                $questionnaireIds = $yesNoQuestions->pluck('id');
+                $calc_percentage = function($role, $group, $questionnaireIds) {
+                    $userIds = $group->$role->pluck('id');
+                    if ($userIds->isEmpty() || $questionnaireIds->isEmpty()) return 0;
+                    $answers = \App\Models\Answer::whereIn('user_id', $userIds)
+                        ->whereIn('questionnaire_id', $questionnaireIds)
+                        ->where('training_group_id', $group->id)
+                        ->get();
+                    $yes = $answers->where('value', '1')->count();
+                    $no = $answers->whereIn('value', ['0', 0])->count();
+                    $total = $yes + $no;
+                    return $total > 0 ? round(($yes / $total) * 100, 2) : 0;
+                };
+                $trainer_percentage = $calc_percentage('trainers', $group, $questionnaireIds);
+                $proctor_percentage = $calc_percentage('proctors', $group, $questionnaireIds);
+                $peserta_percentage = $calc_percentage('users', $group, $questionnaireIds);
+                $final_score = round(
+                    ($trainer_percentage * 0.35) +
+                    ($proctor_percentage * 0.25) +
+                    ($peserta_percentage * 0.40), 2
+                );
+                if (!isset($dataByProgram[$programName])) {
+                    $dataByProgram[$programName] = [];
                 }
+                $dataByProgram[$programName][] = $final_score;
             }
-
             $achievementByProgram = [];
-            $suggestionsByProgram = [];
-            foreach ($dataByProgram as $program => $data) {
-                $achievementByProgram[$program] = round(collect($data['percentages'])->average());
-                $suggestionsByProgram[$program] = $data['suggestions'] ?? [];
+            foreach ($dataByProgram as $program => $scores) {
+                $achievementByProgram[$program] = round(collect($scores)->average(), 2);
             }
-
-            return view('proctor.ketercapaian', compact('proctor', 'achievementByProgram', 'suggestionsByProgram'));
+            return view('proctor.ketercapaian', compact('proctor', 'achievementByProgram'));
         } catch (\Exception $e) {
             Log::error('Error in ProctorPageController@showKetercapaian: ' . $e->getMessage());
             return back()->with('error', 'Terjadi kesalahan saat memuat laporan ketercapaian.');

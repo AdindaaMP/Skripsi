@@ -15,6 +15,7 @@ use App\Http\Controllers\QuestionnaireController;
 use App\Http\Controllers\AnswerController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BiodataController;
+use App\Http\Controllers\ProgramQuestionnaireController;
 
 /*
 |--------------------------------------------------------------------------
@@ -23,6 +24,7 @@ use App\Http\Controllers\BiodataController;
 */
 
 Route::get('/', [DashboardController::class, 'index'])->name('welcome');
+Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home.user');
 
 /*
 |--------------------------------------------------------------------------
@@ -30,9 +32,6 @@ Route::get('/', [DashboardController::class, 'index'])->name('welcome');
 |--------------------------------------------------------------------------
 */
 
-// Hapus route login manual dan proses login, redirect ke welcome jika ada yang akses /login/{role} atau /login
-
-// Route login admin manual
 Route::get('/login/admin', function () {
     return view('auth.login_admin');
 })->name('login.admin');
@@ -47,32 +46,17 @@ Route::post('/login/admin', function (\Illuminate\Http\Request $request) {
     return back()->with('error', 'Email atau password salah, atau Anda bukan admin.');
 })->name('login.admin.submit');
 
-// Route login manual (form login) - redirect ke welcome
 Route::get('/login/{role}', function () {
     return redirect()->route('welcome');
 });
-// Route proses login manual - redirect ke welcome
-Route::post('/login', function () {
-    return redirect()->route('welcome');
-});
 
-// Logout
-Route::post('/logout', function (Request $request) {
-    Auth::logout();
-    $request->session()->invalidate();
-    $request->session()->regenerateToken();
-    return redirect()->route('welcome'); 
-})->name('logout');
+Route::get('/admin', function () {
+    return redirect()->route('login.admin');
+});
 
 Route::get('login/microsoft/{role}', [AuthController::class, 'redirectToMicrosoft'])->name('login.microsoft');
 Route::get('login/microsoft/callback', [AuthController::class, 'handleMicrosoftCallback']);
 Route::get('login/microsoft/{role}/callback', [AuthController::class, 'handleMicrosoftCallback'])->where('role', 'admin|user|trainer|proctor');
-
-/*
-|--------------------------------------------------------------------------
-| Biodata Routes
-|--------------------------------------------------------------------------
-*/
 
 Route::middleware('auth')->group(function () {
     Route::get('/biodata', [BiodataController::class, 'show'])->name('biodata.show');
@@ -80,11 +64,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/jurusan/{nim}', [BiodataController::class, 'getJurusan'])->name('api.jurusan');
 });
 
-/*
-|--------------------------------------------------------------------------
-| Admin Route Group
-|--------------------------------------------------------------------------
-*/
+Route::post('/logout', function (Request $request) {
+    Auth::logout();
+    $request->session()->invalidate();
+    $request->session()->regenerateToken();
+    return redirect()->route('welcome');
+})->name('logout');
 
 Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
@@ -111,7 +96,6 @@ Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () 
         try {
             $results = [];
             
-            // Fix missing programs
             $groupsWithoutProgram = \App\Models\TrainingGroup::whereNull('program_id')->get();
             $firstProgram = \App\Models\Program::first();
             if ($firstProgram) {
@@ -121,7 +105,6 @@ Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () 
             }
             $results['programs_fixed'] = $groupsWithoutProgram->count();
             
-            // Fix invalid programs
             $groups = \App\Models\TrainingGroup::all();
             $invalidFixed = 0;
             foreach ($groups as $group) {
@@ -132,7 +115,6 @@ Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () 
             }
             $results['invalid_programs_fixed'] = $invalidFixed;
             
-            // Fix missing questionnaires
             $questionnairesFixed = 0;
             foreach ($groups as $group) {
                 $questionnaires = \App\Models\Questionnaire::where('training_group_id', $group->id)->get();
@@ -168,37 +150,23 @@ Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () 
         Route::post('/update-order', [QuestionnaireController::class, 'updateOrder'])->name('updateOrder');
     });
 
-    // Program Questionnaires Management
-    Route::prefix('program-questionnaires')->name('program.questionnaires.')->group(function () {
-        Route::get('/{program}', [App\Http\Controllers\ProgramQuestionnaireController::class, 'index'])->name('index');
-        Route::post('/{program}', [App\Http\Controllers\ProgramQuestionnaireController::class, 'store'])->name('store');
-        Route::put('/{program}/{questionnaire}', [App\Http\Controllers\ProgramQuestionnaireController::class, 'update'])->name('update');
-        Route::delete('/{program}/{questionnaire}', [App\Http\Controllers\ProgramQuestionnaireController::class, 'destroy'])->name('destroy');
-        Route::post('/{program}/update-order', [App\Http\Controllers\ProgramQuestionnaireController::class, 'updateOrder'])->name('updateOrder');
-        Route::post('/{program}/sync', [App\Http\Controllers\ProgramQuestionnaireController::class, 'syncToGroups'])->name('sync');
-    });
+    Route::resource('program.questionnaires', ProgramQuestionnaireController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::post('program/{program}/questionnaires/update-order', [\App\Http\Controllers\ProgramQuestionnaireController::class, 'updateOrder'])->name('program.questionnaires.updateOrder');
+    Route::post('program/{program}/questionnaires/sync', [\App\Http\Controllers\ProgramQuestionnaireController::class, 'syncToGroups'])->name('program.questionnaires.sync');
 
+    Route::get('/biodata', [BiodataController::class, 'show'])->name('biodata.show');
+    Route::post('/biodata', [BiodataController::class, 'store'])->name('biodata.store');
     Route::post('/groups/{group}/invite-user', [\App\Http\Controllers\TrainingGroupController::class, 'inviteUser'])->name('groups.inviteUser');
 });
 
-/*
-|--------------------------------------------------------------------------
-| Pengguna Biasa (User, Trainer, Proctor)
-|--------------------------------------------------------------------------
-*/
+Route::get('/groups/{group}/evaluasi', [App\Http\Controllers\AnswerController::class, 'form'])->name('groups.evaluasi.form');
+Route::post('/groups/{group}/evaluasi', [App\Http\Controllers\AnswerController::class, 'submit'])->name('groups.evaluasi.submit');
+Route::get('/trainer/hasil-evaluasi/{group}', [App\Http\Controllers\TrainerPageController::class, 'showResults'])->name('trainer.results');
+Route::get('/trainer/profil', [App\Http\Controllers\TrainerPageController::class, 'profile'])->name('trainer.profile');
+Route::get('/proctor/ketercapaian', [App\Http\Controllers\ProctorPageController::class, 'showKetercapaian'])->name('proctor.ketercapaian');
+Route::get('/proctor/monitoring/{group}', [App\Http\Controllers\ProctorPageController::class, 'showMonitoring'])->name('proctor.monitoring');
 
-Route::middleware('auth')->group(function () {
-    Route::get('/trainer/hasil-evaluasi/{group}', [App\Http\Controllers\TrainerPageController::class, 'showResults'])->name('trainer.results');
-    Route::get('/trainer/profil', [App\Http\Controllers\TrainerPageController::class, 'profile'])->name('trainer.profile');
-    Route::get('/proctor/monitoring/{group}', [App\Http\Controllers\ProctorPageController::class, 'showMonitoring'])->name('proctor.monitoring');
-    Route::get('/proctor/ketercapaian', [App\Http\Controllers\ProctorPageController::class, 'showKetercapaian'])->name('proctor.ketercapaian');
-});
-
-// Routes yang memerlukan pengecekan biodata
-Route::middleware(['auth'])->group(function () {
-    Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home.user');
-    Route::get('/groups/{group}/evaluasi', [AnswerController::class, 'form'])->name('groups.evaluasi.form');
-    Route::post('/groups/{group}/evaluasi', [AnswerController::class, 'submit'])->name('groups.evaluasi.submit');
-});
+// Export XLSX ketercapaian per kegiatan
+Route::get('/admin/activities/{activity}/export-xlsx', [App\Http\Controllers\AdminController::class, 'exportXlsx'])->name('admin.activities.exportXlsx');
 
 

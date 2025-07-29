@@ -17,7 +17,6 @@ class CheckRole
      */
     public function handle(Request $request, Closure $next, ...$roles): Response
     {
-        // Debug logging
         Log::info('ROLE MIDDLEWARE | Authenticated: ' . (Auth::check() ? 'yes' : 'no'));
         Log::info('ROLE MIDDLEWARE | User: ' . optional(Auth::user())->email);
         Log::info('ROLE MIDDLEWARE | User Role: ' . optional(Auth::user())->role);
@@ -32,7 +31,6 @@ class CheckRole
         $user = Auth::user();
         $userRole = $user->role;
 
-        // Check if user has any of the required roles
         foreach ($roles as $role) {
             if (strtolower(trim($userRole)) === strtolower(trim($role))) {
                 Log::info("ROLE MIDDLEWARE | Access granted for user {$user->email} with role {$userRole}");

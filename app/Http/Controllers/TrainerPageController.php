@@ -22,7 +22,7 @@ class TrainerPageController extends Controller
             }
 
             // Load data dengan eager loading untuk performa yang lebih baik
-            $group->load(['questionnaires.answers.user', 'activity', 'program']);
+            $group->load(['questionnaires.answers.user', 'activity', 'program', 'trainers', 'proctors', 'users']);
 
             // Pastikan program dimuat dengan benar
             if (!$group->program && $group->program_id) {
@@ -97,12 +97,38 @@ class TrainerPageController extends Controller
             $suggestionsFromPeserta = array_unique($suggestionsFromPeserta);
             $suggestionsFromProctor = array_unique($suggestionsFromProctor);
 
+            $questionnaireIds = $yesNoQuestions->pluck('id');
+            $calc_percentage = function($role, $group, $questionnaireIds) {
+                $userIds = $group->$role->pluck('id');
+                if ($userIds->isEmpty() || $questionnaireIds->isEmpty()) return 0;
+                $answers = \App\Models\Answer::whereIn('user_id', $userIds)
+                    ->whereIn('questionnaire_id', $questionnaireIds)
+                    ->where('training_group_id', $group->id)
+                    ->get();
+                $yes = $answers->where('value', '1')->count();
+                $no = $answers->whereIn('value', ['0', 0])->count();
+                $total = $yes + $no;
+                return $total > 0 ? round(($yes / $total) * 100, 2) : 0;
+            };
+            $trainer_percentage = $calc_percentage('trainers', $group, $questionnaireIds);
+            $proctor_percentage = $calc_percentage('proctors', $group, $questionnaireIds);
+            $peserta_percentage = $calc_percentage('users', $group, $questionnaireIds);
+            $final_score = round(
+                ($trainer_percentage * 0.35) +
+                ($proctor_percentage * 0.25) +
+                ($peserta_percentage * 0.40), 2
+            );
+
             return view('trainer.results', [
                 'group' => $group,
                 'activity' => $group->activity,
                 'questionStats' => $questionStats,
                 'suggestionsFromPeserta' => collect($suggestionsFromPeserta), 
                 'suggestionsFromProctor' => collect($suggestionsFromProctor), 
+                'trainer_percentage' => $trainer_percentage,
+                'proctor_percentage' => $proctor_percentage,
+                'peserta_percentage' => $peserta_percentage,
+                'final_score' => $final_score,
             ]);
         } catch (\Exception $e) {
             Log::error('Error in TrainerPageController@showResults: ' . $e->getMessage(), [
@@ -129,7 +155,7 @@ class TrainerPageController extends Controller
 
             // Load training groups dengan eager loading
             $trainingGroups = $trainer->trainingGroupsAsTrainer()
-                ->with(['questionnaires.answers.user', 'program', 'activity'])
+                ->with(['questionnaires.answers.user', 'program', 'activity', 'trainers', 'proctors', 'users'])
                 ->get();
 
             $dataByProgram = [];
@@ -152,41 +178,40 @@ class TrainerPageController extends Controller
                 $programName = $group->program->name;
                 
                 // Hitung ketercapaian berdasarkan questionnaires ya/no
-                $questionnaires = $group->questionnaires->where('type', 'yes_no');
-                
-                if ($questionnaires->isNotEmpty()) {
-                    $totalQuestions = $questionnaires->count();
-                    $totalPositiveAnswers = 0;
-                    $totalAnswerCount = 0;
-                    
-                    foreach ($questionnaires as $questionnaire) {
-                        // Filter jawaban berdasarkan training_group_id
-                        $answers = $questionnaire->answers()->where('training_group_id', $group->id)->get();
-                        if ($answers->isNotEmpty()) {
-                            $yesAnswers = $answers->where('value', '1')->count();
-                            $totalAnswerCount += $answers->count();
-                            $totalPositiveAnswers += $yesAnswers;
-                        }
-                    }
-                    
-                    // Hitung persentase ketercapaian
-                    $achievement = 0;
-                    if ($totalAnswerCount > 0) {
-                        $achievement = round(($totalPositiveAnswers / $totalAnswerCount) * 100);
-                    }
-                    
-                    if (!isset($dataByProgram[$programName])) {
-                        $dataByProgram[$programName] = [];
-                    }
-                    $dataByProgram[$programName][] = $achievement;
+                $yesNoQuestions = $group->questionnaires->where('type', 'yes_no');
+                $questionnaireIds = $yesNoQuestions->pluck('id');
+                $calc_percentage = function($role, $group, $questionnaireIds) {
+                    $userIds = $group->$role->pluck('id');
+                    if ($userIds->isEmpty() || $questionnaireIds->isEmpty()) return 0;
+                    $answers = \App\Models\Answer::whereIn('user_id', $userIds)
+                        ->whereIn('questionnaire_id', $questionnaireIds)
+                        ->where('training_group_id', $group->id)
+                        ->get();
+                    $yes = $answers->where('value', '1')->count();
+                    $no = $answers->whereIn('value', ['0', 0])->count();
+                    $total = $yes + $no;
+                    return $total > 0 ? round(($yes / $total) * 100, 2) : 0;
+                };
+                $trainer_percentage = $calc_percentage('trainers', $group, $questionnaireIds);
+                $proctor_percentage = $calc_percentage('proctors', $group, $questionnaireIds);
+                $peserta_percentage = $calc_percentage('users', $group, $questionnaireIds);
+                $final_score = round(
+                    ($trainer_percentage * 0.35) +
+                    ($proctor_percentage * 0.25) +
+                    ($peserta_percentage * 0.40), 2
+                );
+
+                if (!isset($dataByProgram[$programName])) {
+                    $dataByProgram[$programName] = [];
                 }
+                $dataByProgram[$programName][] = $final_score;
             }
 
             // Hitung rata-rata ketercapaian per program
             $achievementByProgram = [];
-            foreach ($dataByProgram as $program => $percentages) {
-                if (!empty($percentages)) {
-                    $achievementByProgram[$program] = round(collect($percentages)->average());
+            foreach ($dataByProgram as $program => $scores) {
+                if (!empty($scores)) {
+                    $achievementByProgram[$program] = round(collect($scores)->average(), 2);
                 }
             }
 

@@ -11,9 +11,6 @@ use Illuminate\Support\Facades\Log;
 
 class AnswerController extends Controller
 {
-    /**
-     * Menampilkan form evaluasi kepada user.
-     */
     public function form(TrainingGroup $group)
     {
         try {
@@ -22,28 +19,21 @@ class AnswerController extends Controller
                 return redirect()->route('login');
             }
 
-            // Load questionnaires untuk group ini
             $group->load(['questionnaires', 'activity', 'program']);
 
-            // Pastikan program dimuat dengan benar
             if (!$group->program && $group->program_id) {
                 $group->program = \App\Models\Program::find($group->program_id);
             }
 
-            // Pastikan group ada questionnaires
             if ($group->questionnaires->isEmpty()) {
                 return redirect()->back()->with('error', 'Tidak ada kuesioner untuk kelompok ini.');
             }
 
             $questionsQuery = $group->questionnaires()->newQuery(); 
 
-            // Filter pertanyaan berdasarkan role
             if ($user->role === 'trainer') {
-                // Trainer tidak akan melihat pertanyaan bertipe text
                 $questionsQuery->where('type', '!=', 'text');
             }
-            // Proctor dan user biasa bisa melihat semua pertanyaan
-            
             $questions = $questionsQuery->orderBy('order', 'asc')->get();
 
             $userAnswers = $user->answers()
@@ -61,9 +51,6 @@ class AnswerController extends Controller
         }
     }
 
-    /**
-     * Menyimpan atau memperbarui jawaban evaluasi dari user.
-     */
     public function submit(Request $request, TrainingGroup $group)
     {
         try {
@@ -79,7 +66,7 @@ class AnswerController extends Controller
                     [
                         'questionnaire_id'    => $questionId,
                         'user_id'             => $user->id,
-                        'training_group_id'   => $group->id, // penting!
+                        'training_group_id'   => $group->id,
                     ],
                     [
                         'value' => $answerData['value'],
@@ -87,7 +74,6 @@ class AnswerController extends Controller
                 );
             }
 
-            // Redirect berdasarkan role user
             if ($user->role === 'trainer') {
                 return redirect()
                     ->route('home.user')

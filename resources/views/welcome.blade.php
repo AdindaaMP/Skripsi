@@ -112,7 +112,7 @@
     <footer class="bg-white mt-16 py-8">
         <div class="container mx-auto px-4 text-center">
             <p class="text-gray-600">
-                © 2024 ITCC ITPN. All rights reserved.
+                &copy; {{ date('Y') }} ITCC ITPN. All rights reserved.
             </p>
         </div>
     </footer>

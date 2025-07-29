@@ -21,28 +21,41 @@
 
     {{-- Info Group dan Chart --}}
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div class="md:col-span-2 bg-gray-50 p-6 rounded-lg">
-            <h3 class="font-semibold text-lg text-gray-800 mb-4">Total Peserta: {{ $group->users->count() }}</h3>
-            <table class="w-full text-sm text-left">
-                <thead class="text-xs text-gray-700 uppercase">
-                    <tr>
-                        <th class="pb-2">Proctor</th>
-                        <th class="pb-2">Trainer</th>
-                        <th class="pb-2">Program</th>
-                        <th class="pb-2">Ketercapaian(%)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td class="pt-2">{{ optional($group->proctors->first())->name ?? '-' }}</td>
-                        <td class="pt-2">{{ optional($group->trainers->first())->name ?? '-' }}</td>
-                        <td class="py-2">{{ optional($group->program)->name ?? 'Program tidak diatur' }}</td>
-                        <td class="pt-2 font-bold text-lg text-blue-600">{{ $percentage }}%</td>
-                    </tr>
-                </tbody>
-            </table>
+        <div class="md:col-span-2 bg-gray-50 p-6 rounded-lg flex flex-col gap-6">
+            <div>
+                <h3 class="font-semibold text-lg text-gray-800 mb-4">Total Peserta: {{ $group->users->count() }}</h3>
+                <table class="w-full text-sm text-left">
+                    <thead class="text-xs text-gray-700 uppercase">
+                        <tr>
+                            <th class="pb-2">Proctor</th>
+                            <th class="pb-2">Trainer</th>
+                            <th class="pb-2">Program</th>
+                            <th class="pb-2">Ketercapaian(%)</th>
+                            <th class="pb-2">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="pt-2">{{ optional($group->proctors->first())->name ?? '-' }}</td>
+                            <td class="pt-2">{{ optional($group->trainers->first())->name ?? '-' }}</td>
+                            <td class="py-2">{{ optional($group->program)->name ?? 'Program tidak diatur' }}</td>
+                            <td class="pt-2 font-bold text-lg text-blue-600">{{ $percentage }}%</td>
+                            <td class="pt-2">
+                                @if($percentage >= 60)
+                                    <span class="inline-block px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded">Tercapai</span>
+                                @else
+                                    <span class="inline-block px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded">Belum Tercapai</span>
+                                @endif
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-2">
+                <div class="text-center font-semibold mb-2">Chart Persentase Validasi Per Peran</div>
+                <div class="w-full max-w-md mx-auto"><canvas id="weightedBarChart"></canvas></div>
+            </div>
         </div>
-
         <div class="bg-gray-50 p-6 rounded-lg flex flex-col items-center justify-between">
             <h3 class="font-semibold text-lg text-gray-800 mb-2">Pie Chart Pengisi Kuesioner</h3>
             <div class="w-32 h-32"><canvas id="submissionRoleChart"></canvas></div>
@@ -152,6 +165,8 @@
 
 {{-- Script --}}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Chart.js DataLabels plugin -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const submissionCtx = document.getElementById('submissionRoleChart')?.getContext('2d');
@@ -183,6 +198,72 @@
                         }
                     }
                 }
+            });
+        }
+
+        // CHART BATANG PEMBOBOTAN KETERISIAN PER ROLE
+        const weightedBarCtx = document.getElementById('weightedBarChart')?.getContext('2d');
+        if (weightedBarCtx) {
+            const proctor_percentage = {{ $proctor_percentage ?? 0 }};
+            const trainer_percentage = {{ $trainer_percentage ?? 0 }};
+            const peserta_percentage = {{ $peserta_percentage ?? 0 }};
+            const roleLabels = ['Trainer', 'Proctor', 'Peserta'];
+            const roleData = [trainer_percentage, proctor_percentage, peserta_percentage];
+            const roleColors = ['#2563eb', '#a21caf', '#f59e42']; // biru, ungu, oranye
+            new Chart(weightedBarCtx, {
+                type: 'bar',
+                data: {
+                    labels: roleLabels,
+                    datasets: [{
+                        label: 'Ketercapaian (%)',
+                        data: roleData,
+                        backgroundColor: roleColors,
+                        borderRadius: 8,
+                        maxBarThickness: 60,
+                        barPercentage: 0.8,
+                        categoryPercentage: 0.9
+                    }]
+                },
+                options: {
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: {
+                            anchor: 'top',
+                            align: 'top',
+                            offset: 4,
+                            color: '#fff',
+                            font: { weight: 'bold', size: 14 },
+                            formatter: function(value) {
+                                return value + '%';
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.parsed.y + '%';
+                                }
+                            }
+                        }
+                    },
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(val) { return val + '%'; },
+                                color: '#6B7280'
+                            },
+                            grid: { color: 'rgba(156, 163, 175, 0.2)' }
+                        },
+                        x: {
+                            ticks: { color: '#6B7280' },
+                            grid: { display: false }
+                        }
+                    }
+                },
+                plugins: [ChartDataLabels]
             });
         }
 

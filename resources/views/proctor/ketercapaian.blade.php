@@ -18,35 +18,34 @@
         <h2 class="text-xl font-semibold text-gray-700 mb-4">Rasio Ketercapaian Grup yang Diawasi</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             @forelse ($achievementByProgram as $program => $percentage)
-                <div class="bg-gray-50 p-6 rounded-lg text-center shadow-sm border-l-4 {{ $percentage >= 80 ? 'border-green-500' : ($percentage >= 60 ? 'border-blue-500' : ($percentage >= 40 ? 'border-yellow-500' : 'border-red-500')) }}">
+                @php
+                    $border = $percentage >= 90 ? 'border-green-500' : ($percentage >= 70 ? 'border-blue-500' : ($percentage >= 60 ? 'border-yellow-500' : 'border-red-500'));
+                    $text = $percentage >= 90 ? 'text-green-600' : ($percentage >= 70 ? 'text-blue-600' : ($percentage >= 60 ? 'text-yellow-600' : 'text-red-600'));
+                    $icon = $percentage >= 90 ? 'check-circle' : 'info';
+                @endphp
+                <div class="bg-gray-50 p-6 rounded-lg text-center shadow-sm border-l-4 {{ $border }}">
                     <div class="mb-3">
-                        <svg class="w-8 h-8 mx-auto {{ $percentage >= 80 ? 'text-green-500' : ($percentage >= 60 ? 'text-blue-500' : ($percentage >= 40 ? 'text-yellow-500' : 'text-red-500')) }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            @if($percentage >= 80)
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            @elseif($percentage >= 60)
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            @elseif($percentage >= 40)
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
-                            @else
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            @endif
-                        </svg>
+                        @if($percentage >= 90)
+                            <svg class="w-8 h-8 mx-auto text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        @else
+                            <svg class="w-8 h-8 mx-auto text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        @endif
                     </div>
                     <h3 class="text-lg font-semibold text-gray-800 mb-2">{{ $program }}</h3>
-                    <div class="text-4xl font-bold {{ $percentage >= 80 ? 'text-green-600' : ($percentage >= 60 ? 'text-blue-600' : ($percentage >= 40 ? 'text-yellow-600' : 'text-red-600')) }}">
+                    <div class="text-4xl font-bold {{ $text }}">
                         {{ $percentage }}%
                     </div>
-                    <p class="text-sm text-gray-500 mt-2">
-                        @if($percentage >= 80)
+                    <div class="mt-1 text-sm font-medium text-gray-700">
+                        @if($percentage >= 90)
                             Sangat Baik
-                        @elseif($percentage >= 60)
+                        @elseif($percentage >= 70)
                             Baik
-                        @elseif($percentage >= 40)
+                        @elseif($percentage >= 60)
                             Cukup
                         @else
                             Perlu Perbaikan
                         @endif
-                    </p>
+                    </div>
                 </div>
             @empty
                 <div class="text-center py-8 md:col-span-3">

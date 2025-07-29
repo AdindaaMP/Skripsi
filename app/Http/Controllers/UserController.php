@@ -10,9 +10,6 @@ use App\Models\TrainingGroup;
 
 class UserController extends Controller
 {
-    /**
-     * Menampilkan daftar semua pengguna dengan filter dan search.
-     */
     public function search(Request $request)
     {
         $searchTerm = $request->input('query');
