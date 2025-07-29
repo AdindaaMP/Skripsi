@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chart Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .chart-container { height: 400px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Chart.js Test</h1>
+        <p>This page tests if Chart.js is working correctly.</p>
+        
+        <div class="chart-container">
+            <canvas id="testChart"></canvas>
+        </div>
+        
+        <div id="status"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log('DOM loaded');
+            
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = '<p>Loading chart...</p>';
+            
+            const canvas = document.getElementById('testChart');
+            if (!canvas) {
+                statusDiv.innerHTML = '<p style="color: red;">Error: Canvas not found</p>';
+                return;
+            }
+            
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                statusDiv.innerHTML = '<p style="color: red;">Error: Cannot get canvas context</p>';
+                return;
+            }
+            
+            // Test data
+            const chartData = [
+                {
+                    question: "Apakah materi pelatihan sudah sesuai dengan kebutuhan?",
+                    percentage: 100
+                },
+                {
+                    question: "Apakah trainer menjelaskan materi dengan jelas?",
+                    percentage: 100
+                },
+                {
+                    question: "Apakah fasilitas pelatihan sudah memadai?",
+                    percentage: 67
+                },
+                {
+                    question: "Apakah durasi pelatihan sudah sesuai?",
+                    percentage: 100
+                },
+                {
+                    question: "Apakah Anda sudah memahami fitur-fitur dasar?",
+                    percentage: 33
+                }
+            ];
+            
+            const labels = chartData.map(item => {
+                let q = item.question || '';
+                return q.length > 50 ? q.slice(0, 50) + '...' : q;
+            });
+            
+            const data = chartData.map(item => item.percentage || 0);
+            
+            const backgroundColors = data.map(percentage => {
+                if (percentage >= 80) return 'rgba(34,197,94,0.7)';     // Hijau
+                if (percentage >= 60) return 'rgba(59,130,246,0.7)';     // Biru
+                if (percentage >= 40) return 'rgba(245,158,11,0.7)';     // Oranye
+                return 'rgba(239,68,68,0.7)';                             // Merah
+            });
+            
+            const borderColors = backgroundColors.map(color => color.replace('0.7', '1'));
+            
+            try {
+                const chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Ketercapaian (%)',
+                            data: data,
+                            backgroundColor: backgroundColors,
+                            borderColor: borderColors,
+                            borderWidth: 1,
+                            borderRadius: 5,
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: true,
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: {
+                                    callback: function(val) {
+                                        return val + '%';
+                                    },
+                                    color: '#6B7280'
+                                },
+                                grid: {
+                                    color: 'rgba(156, 163, 175, 0.2)'
+                                }
+                            },
+                            y: {
+                                ticks: {
+                                    color: '#6B7280'
+                                },
+                                grid: {
+                                    display: false
+                                }
+                            }
+                        },
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    title: function(context) {
+                                        const index = context[0].dataIndex;
+                                        return chartData[index] && chartData[index].question ? chartData[index].question : '';
+                                    },
+                                    label: function(context) {
+                                        return 'Ketercapaian: ' + context.parsed.x + '%';
+                                    }
+                                }
+                            },
+                            legend: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+                
+                statusDiv.innerHTML = '<p style="color: green;">✓ Chart created successfully!</p>';
+                console.log('Chart created successfully');
+            } catch (error) {
+                statusDiv.innerHTML = '<p style="color: red;">✗ Error creating chart: ' + error.message + '</p>';
+                console.error('Error creating chart:', error);
+            }
+        });
+    </script>
+</body>
+</html> 
